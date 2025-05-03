@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>一對一聊天室</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    #chat { border: 1px solid #ccc; padding: 10px; height: 300px; overflow-y: scroll; margin-bottom: 10px; background: #f9f9f9; }
+    input { margin: 2px; }
+    #message { width: 70%; }
+  </style>
+</head>
+<body>
+  <h2>一對一聊天室</h2>
+  <input type="text" id="name" placeholder="你的名字" />
+  <input type="text" id="target" placeholder="對方名字" />
+  <div id="chat"></div>
+  <input type="text" id="message" placeholder="輸入訊息" />
+  <button id="sendBtn">送出</button>
+  <button id="clearLocal">清除本地紀錄</button>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
+    import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBG4S-_FKVlnRS_hrjfMaF2ipv5LwnF3i4",
+      authDomain: "peple-talking.firebaseapp.com",
+      databaseURL: "https://peple-talking-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "peple-talking",
+      storageBucket: "peple-talking.firebasestorage.app",
+      messagingSenderId: "10024577302",
+      appId: "1:10024577302:web:77dd04c15746428ae74837",
+      measurementId: "G-L7C24CPFLF"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const db = getDatabase(app);
+    const messagesRef = ref(db, "messages");
+
+    const chatDiv = document.getElementById("chat");
+    const nameInput = document.getElementById("name");
+    const targetInput = document.getElementById("target");
+    const messageInput = document.getElementById("message");
+    const sendBtn = document.getElementById("sendBtn");
+    const clearBtn = document.getElementById("clearLocal");
+
+    let localMessages = [];
+
+    // 顯示訊息
+    function displayMessage(msg) {
+      const time = formatTime(msg.timestamp);
+      const p = document.createElement("p");
+      p.textContent = `${msg.name}: ${msg.text} (${time})`;
+      chatDiv.appendChild(p);
+      chatDiv.scrollTop = chatDiv.scrollHeight;
+    }
+
+    // 存入 localStorage
+    function saveToLocal(msg) {
+      localMessages.push(msg);
+      localStorage.setItem("chatHistory", JSON.stringify(localMessages));
+    }
+
+    // 載入 localStorage 紀錄
+    function loadLocalMessages(myName, targetName) {
+      chatDiv.innerHTML = "";
+      const raw = localStorage.getItem("chatHistory");
+      if (raw) {
+        localMessages = JSON.parse(raw);
+        localMessages.forEach(msg => {
+          if (
+            (msg.name === myName && msg.to === targetName) ||
+            (msg.name === targetName && msg.to === myName)
+          ) {
+            displayMessage(msg);
+          }
+        });
+      }
+    }
+
+    function formatTime(ms) {
+      const date = new Date(ms);
+      const h = String(date.getHours()).padStart(2, "0");
+      const m = String(date.getMinutes()).padStart(2, "0");
+      return `${h}:${m}`;
+    }
+
+    // 當輸入名字或對象時載入紀錄
+    nameInput.addEventListener("change", loadMessages);
+    targetInput.addEventListener("change", loadMessages);
+
+    function loadMessages() {
+      const me = nameInput.value.trim();
+      const you = targetInput.value.trim();
+      if (me && you) {
+        loadLocalMessages(me, you);
+      }
+    }
+
+    // 發送訊息
+    sendBtn.addEventListener("click", () => {
+      const name = nameInput.value.trim();
+      const to = targetInput.value.trim();
+      const text = messageInput.value.trim();
+      if (name && to && text) {
+        const msg = {
+          name,
+          to,
+          text,
+          timestamp: Date.now()
+        };
+        push(messagesRef, msg);
+        messageInput.value = "";
+      }
+    });
+
+    // 接收訊息，並顯示+儲存本地
+    onChildAdded(messagesRef, (data) => {
+      const msg = data.val();
+      const me = nameInput.value.trim();
+      const you = targetInput.value.trim();
+      if (!me || !you) return;
+
+      const isMine = (msg.name === me && msg.to === you);
+      const isTheirs = (msg.name === you && msg.to === me);
+      if (isMine || isTheirs) {
+        displayMessage(msg);
+        saveToLocal(msg);
+      }
+    });
+
+    // 清除 localStorage 紀錄
+    clearBtn.addEventListener("click", () => {
+      localStorage.removeItem("chatHistory");
+      chatDiv.innerHTML = "";
+      localMessages = [];
+    });
+
+    // 初始自動載入
+    window.addEventListener("load", loadMessages);
+  </script>
+</body>
+</html>
